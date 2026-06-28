@@ -1,0 +1,35 @@
+# Java
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Node
+node_modules/
+dist/
+
+# Environment & Secrets
+.env
+*.log
+
+# Docker volumes
+docker/**/data/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Claude
+.claude/

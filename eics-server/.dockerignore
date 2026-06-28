@@ -1,0 +1,7 @@
+target/classes/
+*.log
+*.tmp
+.git/
+.idea/
+*.iml
+node_modules/

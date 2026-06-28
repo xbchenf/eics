@@ -1,0 +1,114 @@
+# ============================================================================
+# EICS Server 应用配置
+# 所有环境相关配置统一在此管理，禁止硬编码
+# Docker 部署时通过环境变量覆盖，本地开发使用默认值（localhost）
+# ============================================================================
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  application:
+    name: eics-server
+
+  # ========== 数据源 MySQL ==========
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:eics_main}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:eics}
+    password: ${MYSQL_PASSWORD:eics_pass_2024}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # ========== Redis 会话缓存 ==========
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:eics_redis_2024}
+      database: 0
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+
+  # ========== SpringAI OpenAI 兼容 LLM 配置 ==========
+  # 阿里百炼 DashScope（OpenAI 兼容协议），base-url 指向华北2（北京）
+  ai:
+    openai:
+      api-key: ${DASHSCOPE_API_KEY}                                       # 百炼 API Key（必须设置环境变量）
+      base-url: https://dashscope.aliyuncs.com/compatible-mode                # 不带 /v1，SpringAI 自动拼接
+      connect-timeout: 30s                                                    # HTTP 连接超时
+      read-timeout: 60s                                                       # HTTP 读取超时（LLM 生成可能较慢）
+      chat:
+        options:
+          model: ${LLM_MODEL:qwen-max}                                     # 百炼旗舰对话模型
+          temperature: 0.3
+          max-tokens: 1024
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:text-embedding-v4}                      # 百炼文本向量模型（1024维）
+    vectorstore:
+      milvus:
+        host: ${MILVUS_HOST:localhost}
+        port: ${MILVUS_PORT:19530}
+        database-name: default                                              # Milvus 默认库
+        collection-name: knowledge_base
+        embedding-dimension: 1024                                           # text-embedding-v4 输出维度
+        initialize-schema: true                                             # SpringAI 自动建 collection + 索引
+        index-type: IVF_FLAT
+        metric-type: COSINE
+
+# ========== MinIO 文件存储 ==========
+minio:
+  endpoint: http://${MINIO_HOST:localhost}:${MINIO_PORT:9000}
+  access-key: ${MINIO_ROOT_USER:eics_admin}
+  secret-key: ${MINIO_ROOT_PASSWORD:eics_minio_2024}
+  bucket: eics-documents
+
+# ========== 对话引擎配置（替代 Rasa） ==========
+dialog:
+  # 对话状态 Redis TTL（分钟）
+  state-ttl-minutes: 30
+  # LLM 实体提取超时（秒）
+  llm-extract-timeout: 2
+  # 单槽位最大追问次数
+  max-retry-per-slot: 3
+
+# ========== JWT 认证配置 ==========
+jwt:
+  secret: ${JWT_SECRET:eics_jwt_secret_2024_prod_change_me}
+  expire-hours: ${JWT_EXPIRE_HOURS:24}
+
+# ========== 安全配置 ==========
+security:
+  sensitive-word:
+    enabled: true                              # 是否启用敏感词过滤
+    custom-words: ""                            # 自定义敏感词（逗号分隔），留空使用内建词库
+
+# ========== MyBatis-Plus ==========
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+# ========== 日志 ==========
+logging:
+  level:
+    com.eics: debug
+    org.springframework.ai: debug

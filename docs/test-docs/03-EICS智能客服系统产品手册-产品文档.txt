@@ -1,0 +1,32 @@
+EICS 企业一体化智能客服系统 — 产品手册 V2.1
+
+一、产品概述
+EICS 是企业级智能客服平台，基于 SpringBoot + SpringAI + Milvus + Vue 3 构建，
+支持私有化部署，无第三方大模型数据泄露风险。
+
+二、核心功能
+1. RAG 知识库问答
+   - 文档上传自动解析（PDF/Word/TXT/Markdown）
+   - 向量化入库 Milvus，HNSW 索引高效检索
+   - LLM 基于检索结果生成答案，附带文档溯源
+
+2. 多轮对话工单
+   - 自动收集手机号、问题类型、故障描述
+   - 支持按钮快捷选择问题类型
+   - 工单自动创建，支持优先级/SLA 管理
+
+3. AI 转人工坐席
+   - 无缝转接，WebSocket 实时通信
+   - 坐席可查看完整历史对话
+   - 会话关闭后自动重置对话上下文
+
+三、技术架构
+系统采用微服务架构，包含以下服务组件：
+- eics-server：Java 17 + SpringBoot 3.3 业务中台
+- eics-web：Vue 3 + Element Plus 前端
+- 中间件层：MySQL 8.0、Redis 7、Milvus 2.4、MinIO
+
+四、部署要求
+最低配置：4 核 CPU、8GB 内存、50GB 磁盘
+推荐配置：8 核 CPU、16GB 内存、100GB SSD
+支持 Docker Compose 一键部署，纯 Java 技术栈。

@@ -1,0 +1,74 @@
+# ============================================================================
+# EICS 测试环境配置 — H2 内存数据库 + Mock 外部服务
+# ============================================================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:eics_test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-h2.sql
+
+  # 禁用 Milvus/Redis（测试不依赖中间件）
+  ai:
+    openai:
+      api-key: test-key
+      base-url: http://localhost:9999
+      chat:
+        options:
+          model: qwen-max
+      embedding:
+        options:
+          model: text-embedding-v4
+    vectorstore:
+      milvus:
+        host: localhost
+        port: 19530
+        collection-name: knowledge_base
+        embedding-dimension: 1024
+        index-type: IVF_FLAT
+        metric-type: COSINE
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.milvus.MilvusVectorStoreAutoConfiguration
+      - org.springframework.ai.autoconfigure.openai.OpenAiAutoConfiguration
+      - org.springframework.ai.autoconfigure.openai.OpenAiEmbeddingAutoConfiguration
+
+# MinIO 测试用
+minio:
+  endpoint: http://localhost:9000
+  access-key: test
+  secret-key: test
+  bucket: test-bucket
+
+# Rasa 回调
+rasa:
+  callback-url: http://localhost:5005/webhooks/rest/webhook
+
+# JWT
+jwt:
+  secret: test-secret-key-for-unit-tests-only
+  expire-hours: 1
+
+# 安全
+security:
+  sensitive-word:
+    enabled: true
+
+# MyBatis-Plus
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0

@@ -1,0 +1,241 @@
+# ============================================================================
+# EICS 全服务 docker-compose 编排（一键部署）
+# 包含: MySQL / Redis / Milvus / MinIO / Java后端 / Rasa / Vue前端
+# 使用方式: docker compose --env-file .env up -d
+# ============================================================================
+
+networks:
+  eics-net:
+    driver: bridge
+
+services:
+  # ============================================================================
+  # 1. MySQL 8.0 — 业务数据库
+  # ============================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: eics-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    networks:
+      - eics-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # 2. Redis 7 — 会话缓存
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: eics-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - eics-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # 3. etcd — Milvus 元数据存储（仅 Milvus 内部使用）
+  # ============================================================================
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: eics-etcd
+    restart: unless-stopped
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd-data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks:
+      - eics-net
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================================================
+  # 4. Milvus 专用 MinIO — 向量存储（仅 Milvus 内部使用）
+  # ============================================================================
+  minio-milvus:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: eics-minio-milvus
+    restart: unless-stopped
+    environment:
+      MINIO_ACCESS_KEY: ${MILVUS_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MILVUS_SECRET_KEY}
+    volumes:
+      - minio-milvus-data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    networks:
+      - eics-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================================================
+  # 5. Milvus 向量数据库 — 向量检索（HNSW 索引）
+  # ============================================================================
+  milvus:
+    image: milvusdb/milvus:v2.4.0
+    container_name: eics-milvus
+    restart: unless-stopped
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio-milvus:
+        condition: service_healthy
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio-milvus:9000
+      MINIO_ACCESS_KEY_ID: ${MILVUS_ACCESS_KEY}
+      MINIO_SECRET_ACCESS_KEY: ${MILVUS_SECRET_KEY}
+    volumes:
+      - milvus-data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    command: ["milvus", "run", "standalone"]
+    networks:
+      - eics-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================================================
+  # 6. 应用 MinIO — 文档/文件对象存储
+  # ============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: eics-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9002:9002"
+    volumes:
+      - minio-data:/minio_data
+    command: server /minio_data --console-address ":9002"
+    networks:
+      - eics-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================================================
+  # 7. EICS Java 业务中台
+  # ============================================================================
+  eics-server:
+    build:
+      context: ../eics-server
+      dockerfile: Dockerfile
+    container_name: eics-server
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+      # ---- MySQL ----
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      # ---- Redis ----
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # ---- Milvus ----
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
+      # ---- MinIO ----
+      MINIO_HOST: minio
+      MINIO_PORT: "9000"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # ---- LLM ----
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      LLM_MODEL: ${LLM_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      # ---- JWT ----
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS}
+    ports:
+      - "8080:8080"
+    networks:
+      - eics-net
+
+  # ============================================================================
+  # 8. EICS Rasa 对话引擎（Core 5005 + Action Server 5055 同容器）
+  # ============================================================================
+  # 8. EICS Vue 前端（Nginx 静态资源 + 反向代理）
+  # ============================================================================
+  eics-web:
+    build:
+      context: ../eics-web
+      dockerfile: Dockerfile
+    container_name: eics-web
+    restart: unless-stopped
+    depends_on:
+      - eics-server
+    ports:
+      - "80:80"
+    networks:
+      - eics-net
+
+# ============================================================================
+# 持久化数据卷
+# ============================================================================
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  etcd-data:
+    driver: local
+  minio-milvus-data:
+    driver: local
+  milvus-data:
+    driver: local
+  minio-data:
+    driver: local
