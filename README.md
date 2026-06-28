@@ -2,6 +2,11 @@
 
 企业一体化智能客服系统，纯 Java 技术栈，私有化部署。
 
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Java](https://img.shields.io/badge/java-17-orange)](https://adoptium.net/)
+[![Spring Boot](https://img.shields.io/badge/spring--boot-3.3-brightgreen)](https://spring.io/projects/spring-boot)
+[![Vue](https://img.shields.io/badge/vue-3.x-4fc08d)](https://vuejs.org/)
+
 - 🤖 **RAG 知识库问答**：Milvus 向量检索 + LLM 生成答案，附带文档溯源
 - 📋 **多轮对话工单**：状态机驱动自动收集信息，LLM 增强实体提取
 - 🔁 **AI 转人工坐席**：无缝转接 + WebSocket 实时聊天 + 会话留存
@@ -9,6 +14,35 @@
 - ⭐ **满意度评价**：1-5 星评分，实时推送 + 补偿拉取
 - 🔔 **SLA 超时告警**：WebSocket 实时推送，桌面通知
 - 👥 **多角色用户系统**：USER / AGENT / ADMIN，JWT 认证
+
+---
+
+## 系统界面
+
+### 用户端
+
+| 智能客服对话 |
+|:---:|
+| ![用户聊天页](docs/screenshots/chat.png) |
+| 智能问答 · 多轮工单 · 一键转人工 · 满意度评价 |
+
+### 管理后台
+
+| 工作台总览 | 会话管理 |
+|:---:|:---:|
+| ![工作台](docs/screenshots/dashboard.png) | ![会话管理](docs/screenshots/sessions.png) |
+| KPI 卡片 · 优先级分布 · 7日趋势 | 待接入队列 · 实时聊天 · 快捷回复 |
+
+| 工单管理 | 知识库管理 |
+|:---:|:---:|
+| ![工单](docs/screenshots/orders.png) | ![知识库](docs/screenshots/knowledge.png) |
+| 优先级/SLA · 认领/解决 · 搜索筛选 | 分类侧栏 · 上传解析 · 向量检索 |
+
+| 系统设置 |
+|:---:|
+| ![系统设置](docs/screenshots/settings.png) |
+| 用户管理 · 快捷回复 · 服务健康检查 |
+
 
 ---
 
@@ -73,6 +107,33 @@ npm run dev
 
 ---
 
+## 系统架构
+
+```
+┌────────────────────────────────────────────┐
+│               Vue 3 前端 (Nginx)            │
+│     ChatView · AdminLayout (6 页面)        │
+└────────────────┬───────────────────────────┘
+                 │ REST + WebSocket
+┌────────────────▼───────────────────────────┐
+│           Spring Boot 3.3 (Java 17)         │
+│  ┌──────────┐ ┌──────────┐ ┌────────────┐  │
+│  │ 对话引擎  │ │ RAG 模块  │ │  业务模块   │  │
+│  │ Intent   │ │ 文档解析  │ │ 工单/坐席   │  │
+│  │ Router   │ │ 向量检索  │ │ 满意度/SLA  │  │
+│  │ State    │ │ LLM 生成  │ │ 快捷回复    │  │
+│  │ Machine  │ │          │ │            │  │
+│  └──────────┘ └──────────┘ └────────────┘  │
+└────────────────┬───────────────────────────┘
+                 │
+┌────────────────▼───────────────────────────┐
+│    MySQL · Redis · Milvus · MinIO          │
+│    (Docker Compose 一键部署)                │
+└────────────────────────────────────────────┘
+```
+
+---
+
 ## 项目结构
 
 ```
@@ -128,6 +189,32 @@ npm run dev
 
 ---
 
+## 贡献指南
+
+欢迎提交 Issue 和 Pull Request。
+
+1. Fork 本仓库
+2. 创建特性分支：`git checkout -b feature/xxx`
+3. 提交改动：`git commit -m 'Add xxx'`
+4. 推送到分支：`git push origin feature/xxx`
+5. 提交 Pull Request
+
+---
+
+## 鸣谢
+
+本项目基于以下开源组件构建：
+
+- [Spring Boot](https://spring.io/projects/spring-boot) — Java 应用框架
+- [Spring AI](https://spring.io/projects/spring-ai) — AI 编排框架
+- [MyBatis-Plus](https://baomidou.com/) — ORM 增强工具
+- [Milvus](https://milvus.io/) — 向量数据库
+- [MinIO](https://min.io/) — 对象存储
+- [Element Plus](https://element-plus.org/) — Vue 3 UI 组件库
+- [Redis](https://redis.io/) — 内存数据库
+
+---
+
 ## License
 
-MIT
+MIT © [xbchenf](https://github.com/xbchenf)
